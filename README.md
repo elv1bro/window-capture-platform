@@ -61,7 +61,7 @@ Configure nginx yourself to proxy all hostnames to `127.0.0.1:3000`.
 ## Architecture
 
 - One Fastify process, level detected by `Host` header
-- Slot window: every 10s, random 100–500ms duration
-- Rate limits: lvl1=10/sec, lvl2/lvl3=1 per 10 sec per login
+- Slot spacing: pseudo-random 5–15s between windows; open duration 100–500 ms (shorter gap → shorter window)
+- Rate limits: lvl1=10/sec, lvl2/lvl3=1 per 15 sec per login
 - lvl2: captcha widget + request headers
 - lvl3: queue (SSE) + signed claim via `/guard.js`

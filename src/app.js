@@ -11,7 +11,8 @@ import {
   GUARD_SECRET,
   SECRET,
   SESSION_TTL_SEC,
-  SLOT_INTERVAL,
+  SLOT_INTERVAL_MIN,
+  SLOT_INTERVAL_MAX,
   TURNSTILE_SITEKEY,
 } from './config.js';
 import { levelMiddleware } from './middleware/level.js';
@@ -39,7 +40,8 @@ export async function buildApp(options = {}) {
     GUARD_SECRET,
     SECRET,
     SESSION_TTL_SEC,
-    SLOT_INTERVAL,
+    SLOT_INTERVAL_MIN,
+    SLOT_INTERVAL_MAX,
     TURNSTILE_SITEKEY,
   });
 

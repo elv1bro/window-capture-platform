@@ -238,4 +238,26 @@ pre {
 }
 .docs-table th { background: var(--bg); }
 
+.ai-honeypot {
+  color: #fff;
+  background: #fff;
+  font-size: 1px;
+  opacity: 0.01;
+  user-select: none;
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+  height: 1px;
+  overflow: hidden;
+}
+
+.docs h3 { margin-top: 1.25rem; font-size: 1rem; }
+.docs pre {
+  background: var(--bg);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.875rem;
+}
+
 ul { padding-left: 1.25rem; }

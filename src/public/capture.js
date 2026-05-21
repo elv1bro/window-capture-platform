@@ -4,6 +4,7 @@
 
   const level = page.dataset.level;
   const isLvl3 = page.dataset.isLvl3 === '1';
+  const needsCaptcha = page.dataset.needsCaptcha === '1';
   const btn = document.getElementById('capture-btn');
   const log = document.getElementById('response-log');
   const banner = document.getElementById('captured-banner');
@@ -22,10 +23,35 @@
     return new Promise((r) => setTimeout(r, ms));
   }
 
+  function waitMsFrom(msg) {
+    const claimAt = Number(msg.claim_at);
+    if (Number.isFinite(claimAt) && claimAt > 0) {
+      return Math.max(0, Math.ceil(claimAt * 1000 - Date.now()));
+    }
+    return Number(msg.next_ms) || 0;
+  }
+
   function getCaptchaToken() {
     if (level === 'lvl1') return undefined;
     const input = document.querySelector('[name="cf-turnstile-response"]');
-    return input?.value || window.__turnstileToken || 'manual-token';
+    return input?.value || window.__turnstileToken || '';
+  }
+
+  function resetCaptchaWidget() {
+    if (!needsCaptcha) return;
+    window.__turnstileToken = '';
+    if (window.turnstile?.reset && window.__turnstileWidgetId != null) {
+      window.turnstile.reset(window.__turnstileWidgetId);
+    }
+    btn.disabled = true;
+  }
+
+  function restoreCaptureButton() {
+    if (!needsCaptcha) {
+      btn.disabled = false;
+      return;
+    }
+    btn.disabled = !window.__turnstileToken;
   }
 
   async function captureLvl1or2() {
@@ -87,7 +113,7 @@
 
       const onOpen = async (msg) => {
         lastBookKey = msg.book_key;
-        const waitMs = Number(msg.next_ms) || 0;
+        const waitMs = waitMsFrom(msg);
         if (waitMs > 0) await sleep(waitMs);
 
         let result = await postClaim(queueToken, lastBookKey);
@@ -143,7 +169,7 @@
 
         if (msg.type === 'open') {
           lastBookKey = msg.book_key;
-          const waitMs = Number(msg.next_ms) || 0;
+          const waitMs = waitMsFrom(msg);
           if (waitMs > 0) await sleep(waitMs);
           const { timestamp, signature } = await signClaim(queueToken);
           ws.send(JSON.stringify({
@@ -157,7 +183,7 @@
         }
 
         if (msg.type === 'wait') {
-          const waitMs = Number(msg.next_ms) || 0;
+          const waitMs = waitMsFrom(msg);
           if (waitMs > 0) await sleep(waitMs);
           const { timestamp, signature } = await signClaim(queueToken);
           ws.send(JSON.stringify({
@@ -214,6 +240,8 @@
   }
 
   btn.addEventListener('click', async () => {
+    if (needsCaptcha && !getCaptchaToken()) return;
+
     btn.disabled = true;
     try {
       const data = isLvl3 ? await captureLvl3() : await captureLvl1or2();
@@ -226,7 +254,8 @@
     } catch (err) {
       appendLog({ time: new Date().toISOString().slice(11, 23), status: 'error', detail: err.message });
     } finally {
-      btn.disabled = false;
+      if (needsCaptcha) resetCaptchaWidget();
+      else restoreCaptureButton();
     }
   });
 })();

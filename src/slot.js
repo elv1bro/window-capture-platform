@@ -74,9 +74,9 @@ export function slotState(level, now = Date.now() / 1000) {
   };
 }
 
-/** Milliseconds until the next capture window opens (0 if already open). */
-export function nextOpenInMs(level, now = Date.now() / 1000) {
-  if (slotState(level, now).isOpen) return 0;
+/** Unix seconds when the next capture window opens (null if already open). */
+export function nextOpenAtSec(level, now = Date.now() / 1000) {
+  if (slotState(level, now).isOpen) return null;
 
   const dayStart = Math.floor(now / DAY_SEC) * DAY_SEC;
   const offsetSec = now - dayStart;
@@ -84,25 +84,30 @@ export function nextOpenInMs(level, now = Date.now() / 1000) {
   const { slot, index } = findActiveSlot(slots, offsetSec);
 
   const slotStartSec = dayStart + slot.startOffsetSec;
-  const windowEndSec = slotStartSec + slot.durationMs / 1000;
 
   if (now < slotStartSec) {
-    return Math.ceil((slotStartSec - now) * 1000);
+    return slotStartSec;
   }
 
   const nextSlot = slots[index + 1];
   if (nextSlot) {
-    const nextStartSec = dayStart + nextSlot.startOffsetSec;
-    return Math.ceil((nextStartSec - now) * 1000);
+    return dayStart + nextSlot.startOffsetSec;
   }
 
   const nextDayStart = dayStart + DAY_SEC;
   const nextDaySlots = daySchedule(level, nextDayStart);
   if (nextDaySlots.length > 0) {
-    return Math.ceil((nextDayStart + nextDaySlots[0].startOffsetSec - now) * 1000);
+    return nextDayStart + nextDaySlots[0].startOffsetSec;
   }
 
-  return SLOT_INTERVAL_MAX * 1000;
+  return now + SLOT_INTERVAL_MAX;
+}
+
+/** Milliseconds until the next capture window opens (0 if already open). */
+export function nextOpenInMs(level, now = Date.now() / 1000) {
+  const openAt = nextOpenAtSec(level, now);
+  if (openAt == null) return 0;
+  return Math.max(0, Math.ceil((openAt - now) * 1000));
 }
 
 /** Deterministic pre-claim delay for lvl3 (ms). */

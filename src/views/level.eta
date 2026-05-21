@@ -1,5 +1,5 @@
 <%~ include('partials/header', it) %>
-<section class="capture-page" data-level="<%= it.level %>" data-is-lvl3="<%= it.isLvl3 ? '1' : '0' %>">
+<section class="capture-page" data-level="<%= it.level %>" data-is-lvl3="<%= it.isLvl3 ? '1' : '0' %>" data-needs-captcha="<%= it.showCaptcha ? '1' : '0' %>">
   <h1><%= it.level.toUpperCase() %></h1>
   <p><%= it.login %></p>
 
@@ -10,7 +10,7 @@
   <% } %>
 
   <div class="capture-actions">
-    <button id="capture-btn" type="button" class="btn btn-capture">Capture Flag</button>
+    <button id="capture-btn" type="button" class="btn btn-capture"<% if (it.showCaptcha) { %> disabled<% } %>>Capture Flag</button>
     <form method="post" action="/logout" style="display:inline">
       <button type="submit" class="btn btn-secondary">Logout</button>
     </form>

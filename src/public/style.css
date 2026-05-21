@@ -138,6 +138,15 @@ main { flex: 1; padding: 2rem 0; }
   font-weight: 600;
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:disabled:hover {
+  background: var(--accent);
+}
+
 .actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
 
 .form label {

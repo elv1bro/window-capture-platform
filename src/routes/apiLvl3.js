@@ -7,14 +7,13 @@ import { checkAndConsume } from '../rateLimit.js';
 import { claimDelayMs, nextOpenAtSec, slotState } from '../slot.js';
 
 export const QUEUE_TTL_SEC = 30;
-const TICK_MS = 200;
 const MIN_CLAIM_WINDOW_MS = 80;
-export const PACE_MS_MIN = 1000;
-export const PACE_MS_MAX = 5000;
+export const TICK_MS_MIN = 100;
+export const TICK_MS_MAX = 500;
 
-/** Random client pacing delay; new WebSocket/SSE session resets the timer. */
-export function clientPaceMs() {
-  return randomInt(PACE_MS_MIN, PACE_MS_MAX + 1);
+/** Random delay until the next queue tick (ms). */
+export function tickIntervalMs() {
+  return randomInt(TICK_MS_MIN, TICK_MS_MAX + 1);
 }
 
 function queueKey(token) {
@@ -123,14 +122,17 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     clearTimeout(connectionTimer);
   };
 
-  const emit = (event, payload) => {
-    const nextMs = payload.next_ms ?? 0;
-    clientAllowedAtMs = Date.now() + nextMs;
+  const sendEvent = (event, payload) => {
     send(event, payload);
   };
 
-  const rejectClient = (reason, nextMs = clientPaceMs()) => {
-    emit('error', { reason, next_ms: nextMs });
+  const emitPaced = (event, payload) => {
+    clientAllowedAtMs = Date.now() + (payload.next_ms ?? 0);
+    send(event, payload);
+  };
+
+  const rejectClient = (reason, nextMs = tickIntervalMs()) => {
+    emitPaced('error', { reason, next_ms: nextMs });
     claimHandled = true;
     cleanup();
     if (onClientViolation) onClientViolation(reason);
@@ -140,7 +142,7 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
   const expireClaimWindow = () => {
     if (claimHandled) return;
     claimHandled = true;
-    emit('closed', { reason: 'claim window expired', next_ms: 0 });
+    emitPaced('closed', { reason: 'claim window expired', next_ms: 0 });
     onEnd();
     cleanup();
   };
@@ -148,16 +150,6 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
   const scheduleClaimExpiry = (delayMs) => {
     clearTimeout(claimTimer);
     claimTimer = setTimeout(expireClaimWindow, Math.max(1, delayMs));
-  };
-
-  const emitWaitTick = (nowSec) => {
-    const openAtSec = nextOpenAtSec('lvl3', nowSec);
-    emit('tick', {
-      server_time: nowSec,
-      slot_open: false,
-      next_ms: clientPaceMs(),
-      opens_at: openAtSec,
-    });
   };
 
   const beginOpenWindow = async () => {
@@ -184,7 +176,7 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
       windowEndsAt: windowEndsAtMs,
     });
 
-    emit('open', {
+    emitPaced('open', {
       server_time: openAtMs / 1000,
       window_ms: remainingMs,
       book_key: bookKey,
@@ -206,25 +198,32 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
       return;
     }
 
-    emitWaitTick(nowSec);
-    tickTimer = setTimeout(scheduleTick, TICK_MS);
+    const nextMs = tickIntervalMs();
+    sendEvent('tick', {
+      server_time: nowSec,
+      slot_open: false,
+      next_ms: nextMs,
+      opens_at: nextOpenAtSec('lvl3', nowSec),
+    });
+    tickTimer = setTimeout(scheduleTick, nextMs);
   };
 
-  emit('joined', {
+  const firstTickMs = tickIntervalMs();
+  sendEvent('joined', {
     queue_token: queueToken,
-    next_ms: clientPaceMs(),
+    next_ms: firstTickMs,
     opens_at: nextOpenAtSec('lvl3'),
   });
 
   connectionTimer = setTimeout(() => {
     if (!claimHandled) {
-      emit('error', { reason: 'queue wait timeout', next_ms: 0 });
+      emitPaced('error', { reason: 'queue wait timeout', next_ms: 0 });
       onEnd();
     }
     cleanup();
   }, 120_000);
 
-  scheduleTick();
+  tickTimer = setTimeout(scheduleTick, firstTickMs);
 
   const handleClaim = async (claim) => {
     if (claimHandled) return;
@@ -245,7 +244,7 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     if (result.reason === 'claim too early') {
       const retryMs = result.retry_after_ms ?? 0;
       scheduleClaimExpiry(windowEndsAtMs - Date.now());
-      emit('wait', {
+      emitPaced('wait', {
         reason: result.reason,
         next_ms: retryMs,
         claim_at: (Date.now() + retryMs) / 1000,
@@ -255,7 +254,7 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
 
     clearTimeout(claimTimer);
     claimHandled = true;
-    emit('result', { ...result, next_ms: 0 });
+    emitPaced('result', { ...result, next_ms: 0 });
     onEnd();
     cleanup();
   };
@@ -368,13 +367,13 @@ export default async function apiLvl3Routes(fastify) {
         try {
           msg = JSON.parse(String(raw));
         } catch {
-          wsSend(socket, { type: 'error', reason: 'invalid JSON', next_ms: clientPaceMs() });
+          wsSend(socket, { type: 'error', reason: 'invalid JSON', next_ms: tickIntervalMs() });
           socket.close();
           return;
         }
 
         if (msg.type !== 'claim') {
-          wsSend(socket, { type: 'error', reason: 'expected { type: "claim", ... }', next_ms: clientPaceMs() });
+          wsSend(socket, { type: 'error', reason: 'expected { type: "claim", ... }', next_ms: tickIntervalMs() });
           socket.close();
           return;
         }

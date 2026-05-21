@@ -63,10 +63,10 @@
     if (claimForm) claimForm.classList.add('hidden');
   }
 
-  function showClaimForm(msg) {
+  function showClaimForm(msg, queueToken) {
     if (!claimForm || !bookKeyInput || !queueTokenInput) return;
     bookKeyInput.value = msg.book_key || '';
-    queueTokenInput.value = lvl3Session?.queueToken || '';
+    queueTokenInput.value = queueToken || queueTokenInput.value || lvl3Session?.queueToken || '';
     if (claimWindowHint) {
       claimWindowHint.textContent = `Window ${msg.window_ms || '?'} ms — wait ${msg.next_ms || 0} ms after open before claim`;
     }
@@ -74,13 +74,17 @@
     if (claimSubmitBtn) claimSubmitBtn.focus();
   }
 
-  function endLvl3Session() {
+  function closeQueueConnection() {
     if (lvl3Session?.es) {
       try { lvl3Session.es.close(); } catch { /* ignore */ }
     }
     lvl3Session = null;
-    hideClaimForm();
     restoreCaptureButton();
+  }
+
+  function resetLvl3Session() {
+    closeQueueConnection();
+    hideClaimForm();
   }
 
   async function captureLvl1or2() {
@@ -138,7 +142,7 @@
   }
 
   async function startLvl3Queue() {
-    endLvl3Session();
+    resetLvl3Session();
 
     const joinRes = await fetch('/v1/queue/join', {
       method: 'POST',
@@ -165,23 +169,23 @@
 
     bindQueueEvent(es, 'open', (msg) => {
       logNow('open', `book_key=${msg.book_key} window_ms=${msg.window_ms}`);
-      showClaimForm(msg);
+      showClaimForm(msg, queueToken);
     });
 
     bindQueueEvent(es, 'closed', (msg) => {
       logNow('closed', msg.reason || 'window closed');
-      endLvl3Session();
+      closeQueueConnection();
     });
 
     bindQueueEvent(es, 'error', (msg) => {
       logNow('error', msg.reason || 'queue error');
-      endLvl3Session();
+      closeQueueConnection();
     });
 
     es.onerror = () => {
       if (lvl3Session?.es !== es) return;
       logNow('error', 'SSE connection lost');
-      endLvl3Session();
+      closeQueueConnection();
     };
 
     logNow('queue', 'listening…');
@@ -207,10 +211,9 @@
         if (data.status === 'ok' && data.flag && !String(data.flag).includes('decoy')) {
           banner.textContent = `Captured: ${data.flag}`;
           banner.classList.remove('hidden');
-          endLvl3Session();
+          resetLvl3Session();
         } else if (data.status === 'closed') {
           logNow('closed', data.reason || 'closed');
-          endLvl3Session();
         }
       } catch (err) {
         logNow('error', err.message);

@@ -56,6 +56,7 @@
     return new Promise((resolve) => {
       const ws = new WebSocket(wsUrl);
       let settled = false;
+      let lastBookKey = null;
 
       const finish = (data) => {
         if (settled) return;
@@ -74,6 +75,11 @@
         }
 
         if (msg.type === 'open') {
+          lastBookKey = msg.book_key;
+          const waitMs = Number(msg.next_ms) || 0;
+          if (waitMs > 0) {
+            await new Promise((r) => setTimeout(r, waitMs));
+          }
           const timestamp = Math.floor(Date.now() / 1000);
           let signature = '';
           if (window.WindowGuard?.sign) {
@@ -81,6 +87,27 @@
           }
           ws.send(JSON.stringify({
             type: 'claim',
+            book_key: msg.book_key,
+            captcha_token: getCaptchaToken(),
+            timestamp,
+            signature,
+          }));
+          return;
+        }
+
+        if (msg.type === 'wait') {
+          const waitMs = Number(msg.next_ms) || 0;
+          if (waitMs > 0) {
+            await new Promise((r) => setTimeout(r, waitMs));
+          }
+          const timestamp = Math.floor(Date.now() / 1000);
+          let signature = '';
+          if (window.WindowGuard?.sign) {
+            signature = await window.WindowGuard.sign(joinData.queue_token, timestamp);
+          }
+          ws.send(JSON.stringify({
+            type: 'claim',
+            book_key: lastBookKey,
             captcha_token: getCaptchaToken(),
             timestamp,
             signature,

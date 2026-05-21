@@ -9,8 +9,23 @@
     <div id="turnstile-container" class="turnstile-box" data-sitekey="<%= it.turnstileSitekey %>"></div>
   <% } %>
 
+  <% if (it.isLvl3) { %>
+  <div id="claim-form" class="claim-form hidden">
+    <h2 class="claim-form-title">Window open</h2>
+    <p id="claim-window-hint" class="claim-hint"></p>
+    <form id="claim-submit-form">
+      <input type="hidden" id="queue-token-input" name="queue_token">
+      <label class="claim-field">
+        <span>Booking key</span>
+        <input type="text" id="book-key-input" name="book_key" readonly autocomplete="off" spellcheck="false">
+      </label>
+      <button type="submit" id="claim-submit-btn" class="btn btn-capture">Submit claim</button>
+    </form>
+  </div>
+  <% } %>
+
   <div class="capture-actions">
-    <button id="capture-btn" type="button" class="btn btn-capture"<% if (it.showCaptcha) { %> disabled<% } %>>Capture Flag</button>
+    <button id="capture-btn" type="button" class="btn btn-capture"<% if (it.showCaptcha) { %> disabled<% } %>><%= it.isLvl3 ? 'Join queue' : 'Capture Flag' %></button>
     <form method="post" action="/logout" style="display:inline">
       <button type="submit" class="btn btn-secondary">Logout</button>
     </form>

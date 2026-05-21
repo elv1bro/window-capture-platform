@@ -8,7 +8,6 @@ import { claimDelayMs, nextOpenAtSec, slotState } from '../slot.js';
 
 export const QUEUE_TTL_SEC = 30;
 const TICK_MS = 200;
-const OPEN_POLL_MS = 25;
 const MIN_CLAIM_WINDOW_MS = 80;
 export const PACE_MS_MIN = 1000;
 export const PACE_MS_MAX = 5000;
@@ -109,17 +108,10 @@ function sseSend(reply, event, data) {
   reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
-function waitTickDelayMs(untilOpenMs) {
-  if (untilOpenMs <= OPEN_POLL_MS) return Math.max(1, untilOpenMs);
-  if (untilOpenMs <= 500) return OPEN_POLL_MS;
-  return Math.min(TICK_MS, untilOpenMs);
-}
-
 export function runQueueSession({ login, queueToken, entry, send, onEnd, onClientViolation }) {
   let awaitingClaim = false;
   let claimHandled = false;
   let clientAllowedAtMs = 0;
-  let lastClientTickAtMs = 0;
   let windowEndsAtMs = 0;
   let tickTimer;
   let claimTimer;
@@ -172,10 +164,7 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     if (awaitingClaim || claimHandled) return;
 
     const slot = slotState('lvl3');
-    if (!slot.isOpen) {
-      tickTimer = setTimeout(pollForOpen, OPEN_POLL_MS);
-      return;
-    }
+    if (!slot.isOpen) return;
 
     awaitingClaim = true;
 
@@ -206,11 +195,10 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     scheduleClaimExpiry(remainingMs);
   };
 
-  const pollForOpen = () => {
+  const scheduleTick = () => {
     if (awaitingClaim || claimHandled) return;
 
-    const nowMs = Date.now();
-    const nowSec = nowMs / 1000;
+    const nowSec = Date.now() / 1000;
     const slot = slotState('lvl3');
 
     if (slot.isOpen) {
@@ -218,17 +206,8 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
       return;
     }
 
-    if (nowMs - lastClientTickAtMs >= TICK_MS) {
-      lastClientTickAtMs = nowMs;
-      emitWaitTick(nowSec);
-    }
-
-    const openAtSec = nextOpenAtSec('lvl3', nowSec);
-    const untilOpen = openAtSec == null
-      ? TICK_MS
-      : Math.max(0, Math.ceil((openAtSec - nowSec) * 1000));
-
-    tickTimer = setTimeout(pollForOpen, waitTickDelayMs(untilOpen));
+    emitWaitTick(nowSec);
+    tickTimer = setTimeout(scheduleTick, TICK_MS);
   };
 
   emit('joined', {
@@ -245,8 +224,7 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     cleanup();
   }, 120_000);
 
-  lastClientTickAtMs = Date.now();
-  pollForOpen();
+  scheduleTick();
 
   const handleClaim = async (claim) => {
     if (claimHandled) return;

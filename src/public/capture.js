@@ -8,7 +8,16 @@
   const btn = document.getElementById('capture-btn');
   const log = document.getElementById('response-log');
   const banner = document.getElementById('captured-banner');
+  const claimForm = document.getElementById('claim-form');
+  const claimSubmitForm = document.getElementById('claim-submit-form');
+  const bookKeyInput = document.getElementById('book-key-input');
+  const queueTokenInput = document.getElementById('queue-token-input');
+  const claimWindowHint = document.getElementById('claim-window-hint');
+  const claimSubmitBtn = document.getElementById('claim-submit-btn');
   const MAX_LOG = 20;
+
+  /** @type {{ queueToken: string, es: EventSource } | null} */
+  let lvl3Session = null;
 
   function appendLog(entry) {
     const li = document.createElement('li');
@@ -19,12 +28,12 @@
     while (log.children.length > MAX_LOG) log.removeChild(log.lastChild);
   }
 
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  function waitMsFrom(msg) {
-    return Number(msg.next_ms) || 0;
+  function logNow(status, detail) {
+    appendLog({
+      time: new Date().toISOString().slice(11, 23),
+      status,
+      detail: String(detail || ''),
+    });
   }
 
   function getCaptchaToken() {
@@ -48,6 +57,30 @@
       return;
     }
     btn.disabled = !window.__turnstileToken;
+  }
+
+  function hideClaimForm() {
+    if (claimForm) claimForm.classList.add('hidden');
+  }
+
+  function showClaimForm(msg) {
+    if (!claimForm || !bookKeyInput || !queueTokenInput) return;
+    bookKeyInput.value = msg.book_key || '';
+    queueTokenInput.value = lvl3Session?.queueToken || '';
+    if (claimWindowHint) {
+      claimWindowHint.textContent = `Window ${msg.window_ms || '?'} ms — wait ${msg.next_ms || 0} ms after open before claim`;
+    }
+    claimForm.classList.remove('hidden');
+    if (claimSubmitBtn) claimSubmitBtn.focus();
+  }
+
+  function endLvl3Session() {
+    if (lvl3Session?.es) {
+      try { lvl3Session.es.close(); } catch { /* ignore */ }
+    }
+    lvl3Session = null;
+    hideClaimForm();
+    restoreCaptureButton();
   }
 
   async function captureLvl1or2() {
@@ -94,145 +127,97 @@
     return res.json();
   }
 
-  async function captureLvl3ViaSse(queueToken) {
-    return new Promise((resolve) => {
-      const es = new EventSource(`/v1/queue/wait?queue_token=${encodeURIComponent(queueToken)}`);
-      let lastBookKey = null;
-      let settled = false;
-
-      const finish = (data) => {
-        if (settled) return;
-        settled = true;
-        es.close();
-        resolve(data);
-      };
-
-      const onOpen = async (msg) => {
-        lastBookKey = msg.book_key;
-        const waitMs = waitMsFrom(msg);
-        if (waitMs > 0) await sleep(waitMs);
-
-        let result = await postClaim(queueToken, lastBookKey);
-        if (result.reason === 'claim too early') {
-          await sleep(Number(result.retry_after_ms) || 0);
-          result = await postClaim(queueToken, lastBookKey);
-        }
-        finish(result);
-      };
-
-      es.addEventListener('open', (ev) => {
-        void onOpen(JSON.parse(ev.data));
-      });
-      es.addEventListener('closed', (ev) => {
-        finish(JSON.parse(ev.data));
-      });
-      es.addEventListener('error', () => {
-        finish({ status: 'error', reason: 'SSE connection failed' });
-      });
-
-      setTimeout(() => finish({ status: 'timeout', reason: 'queue wait timeout' }), 120_000);
+  function bindQueueEvent(es, eventName, handler) {
+    es.addEventListener(eventName, (ev) => {
+      try {
+        handler(JSON.parse(ev.data));
+      } catch {
+        logNow('error', `bad ${eventName} event`);
+      }
     });
   }
 
-  async function captureLvl3ViaWs(queueToken) {
-    const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProto}//${location.host}/v1/queue/ws?queue_token=${encodeURIComponent(queueToken)}`;
+  async function startLvl3Queue() {
+    endLvl3Session();
 
-    return new Promise((resolve) => {
-      const ws = new WebSocket(wsUrl);
-      let settled = false;
-      let lastBookKey = null;
-
-      const finish = (data) => {
-        if (settled) return;
-        settled = true;
-        try { ws.close(); } catch { /* ignore */ }
-        resolve(data);
-      };
-
-      ws.addEventListener('open', () => {
-        // connected
-      });
-
-      ws.addEventListener('message', async (ev) => {
-        let msg;
-        try {
-          msg = JSON.parse(ev.data);
-        } catch {
-          finish({ status: 'error', reason: 'invalid server message' });
-          return;
-        }
-
-        if (msg.type === 'open') {
-          lastBookKey = msg.book_key;
-          const waitMs = waitMsFrom(msg);
-          if (waitMs > 0) await sleep(waitMs);
-          const { timestamp, signature } = await signClaim(queueToken);
-          ws.send(JSON.stringify({
-            type: 'claim',
-            book_key: msg.book_key,
-            captcha_token: getCaptchaToken(),
-            timestamp,
-            signature,
-          }));
-          return;
-        }
-
-        if (msg.type === 'wait') {
-          const waitMs = waitMsFrom(msg);
-          if (waitMs > 0) await sleep(waitMs);
-          const { timestamp, signature } = await signClaim(queueToken);
-          ws.send(JSON.stringify({
-            type: 'claim',
-            book_key: lastBookKey,
-            captcha_token: getCaptchaToken(),
-            timestamp,
-            signature,
-          }));
-          return;
-        }
-
-        if (msg.type === 'result') {
-          finish(msg);
-          return;
-        }
-
-        if (msg.type === 'closed') {
-          finish({ status: 'closed', reason: msg.reason });
-          return;
-        }
-
-        if (msg.type === 'error') {
-          finish({ status: 'error', reason: msg.reason || msg.status });
-        }
-      });
-
-      ws.addEventListener('error', () => {
-        finish({ status: 'error', reason: 'WebSocket connection failed' });
-      });
-
-      ws.addEventListener('close', () => {
-        if (!settled) finish({ status: 'error', reason: 'WebSocket closed' });
-      });
-
-      setTimeout(() => finish({ status: 'timeout', reason: 'queue wait timeout' }), 120_000);
-    });
-  }
-
-  async function captureLvl3() {
     const joinRes = await fetch('/v1/queue/join', {
       method: 'POST',
       credentials: 'same-origin',
     });
     const joinData = await joinRes.json();
-    if (!joinData.queue_token) return joinData;
-
-    const wsResult = await captureLvl3ViaWs(joinData.queue_token);
-    if (wsResult.status === 'ok' || wsResult.status === 'closed' || wsResult.status === 'rate_limited') {
-      return wsResult;
+    if (!joinData.queue_token) {
+      logNow(joinData.status || 'error', joinData.reason || 'join failed');
+      restoreCaptureButton();
+      return;
     }
 
-    return captureLvl3ViaSse(joinData.queue_token);
+    const queueToken = joinData.queue_token;
+    const es = new EventSource(`/v1/queue/wait?queue_token=${encodeURIComponent(queueToken)}`);
+    lvl3Session = { queueToken, es };
+
+    bindQueueEvent(es, 'joined', (msg) => {
+      logNow('joined', `next_ms=${msg.next_ms}`);
+    });
+
+    bindQueueEvent(es, 'tick', (msg) => {
+      logNow('tick', `slot_open=${msg.slot_open} next_ms=${msg.next_ms}`);
+    });
+
+    bindQueueEvent(es, 'open', (msg) => {
+      logNow('open', `book_key=${msg.book_key} window_ms=${msg.window_ms}`);
+      showClaimForm(msg);
+    });
+
+    bindQueueEvent(es, 'closed', (msg) => {
+      logNow('closed', msg.reason || 'window closed');
+      endLvl3Session();
+    });
+
+    bindQueueEvent(es, 'error', (msg) => {
+      logNow('error', msg.reason || 'queue error');
+      endLvl3Session();
+    });
+
+    es.onerror = () => {
+      if (lvl3Session?.es !== es) return;
+      logNow('error', 'SSE connection lost');
+      endLvl3Session();
+    };
+
+    logNow('queue', 'listening…');
+  }
+
+  if (claimSubmitForm) {
+    claimSubmitForm.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (needsCaptcha && !getCaptchaToken()) return;
+
+      const queueToken = queueTokenInput?.value || lvl3Session?.queueToken;
+      const bookKey = bookKeyInput?.value;
+      if (!queueToken || !bookKey) {
+        logNow('error', 'missing queue_token or book_key');
+        return;
+      }
+
+      if (claimSubmitBtn) claimSubmitBtn.disabled = true;
+      try {
+        const data = await postClaim(queueToken, bookKey);
+        const detail = data.flag || data.reason || data.retry_after_ms || '';
+        logNow(data.status, detail);
+        if (data.status === 'ok' && data.flag && !String(data.flag).includes('decoy')) {
+          banner.textContent = `Captured: ${data.flag}`;
+          banner.classList.remove('hidden');
+          endLvl3Session();
+        } else if (data.status === 'closed') {
+          logNow('closed', data.reason || 'closed');
+          endLvl3Session();
+        }
+      } catch (err) {
+        logNow('error', err.message);
+      } finally {
+        if (claimSubmitBtn) claimSubmitBtn.disabled = false;
+      }
+    });
   }
 
   btn.addEventListener('click', async () => {
@@ -240,18 +225,25 @@
 
     btn.disabled = true;
     try {
-      const data = isLvl3 ? await captureLvl3() : await captureLvl1or2();
+      if (isLvl3) {
+        await startLvl3Queue();
+        return;
+      }
+
+      const data = await captureLvl1or2();
       const detail = data.flag || data.reason || data.retry_after_ms || '';
-      appendLog({ time: new Date().toISOString().slice(11, 23), status: data.status, detail: String(detail) });
+      logNow(data.status, detail);
       if (data.status === 'ok' && data.flag && !String(data.flag).includes('decoy')) {
         banner.textContent = `Captured: ${data.flag}`;
         banner.classList.remove('hidden');
       }
     } catch (err) {
-      appendLog({ time: new Date().toISOString().slice(11, 23), status: 'error', detail: err.message });
+      logNow('error', err.message);
     } finally {
-      if (needsCaptcha) resetCaptchaWidget();
-      else restoreCaptureButton();
+      if (!isLvl3) {
+        if (needsCaptcha) resetCaptchaWidget();
+        else restoreCaptureButton();
+      }
     }
   });
 })();

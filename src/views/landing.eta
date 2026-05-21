@@ -12,9 +12,7 @@
     <p class="mono">login <code><%= it.exampleLogin %></code> · password <code><%= it.examplePassword %></code></p>
     <div class="actions">
       <a class="btn" href="/login">Login</a>
-      <% if (it.assignmentUrl) { %>
-        <a class="btn btn-secondary" href="<%= it.assignmentUrl %>" target="_blank" rel="noopener">Assignment</a>
-      <% } %>
+      <a class="btn btn-secondary" href="<%= it.assignmentHref %>">Assignment</a>
     </div>
   <% } %>
 </section>

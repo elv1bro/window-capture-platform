@@ -1,4 +1,4 @@
-import { ASSIGNMENT_URL, BASE_DOMAIN, COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
+import { BASE_DOMAIN, COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
 import { createSession, destroySession, verifyPassword } from '../auth.js';
 
 export default async function authRoutes(fastify) {
@@ -10,7 +10,7 @@ export default async function authRoutes(fastify) {
       return reply.view('login.eta', {
         title: 'Login',
         baseDomain: BASE_DOMAIN,
-        assignmentUrl: ASSIGNMENT_URL,
+        assignmentHref: `https://${BASE_DOMAIN}/assignment`,
         error: 'Invalid login or password.',
       });
     }

@@ -1,12 +1,16 @@
-import { BASE_DOMAIN, ASSIGNMENT_URL, TURNSTILE_SITEKEY } from '../config.js';
+import { BASE_DOMAIN, TURNSTILE_SITEKEY } from '../config.js';
 import { randomLoginExample } from '../examples.js';
 
 function viewData(extra = {}) {
   return {
     baseDomain: BASE_DOMAIN,
-    assignmentUrl: ASSIGNMENT_URL,
+    assignmentHref: `https://${BASE_DOMAIN}/assignment`,
     ...extra,
   };
+}
+
+function renderAssignment(reply) {
+  return reply.view('assignment.eta', viewData({ title: 'Assignment' }));
 }
 
 export default async function pagesRoutes(fastify) {
@@ -46,10 +50,6 @@ export default async function pagesRoutes(fastify) {
     }));
   });
 
-  fastify.get('/docs', async (_req, reply) => {
-    if (!ASSIGNMENT_URL) {
-      return reply.code(404).send('Assignment URL is not configured');
-    }
-    return reply.redirect(ASSIGNMENT_URL);
-  });
+  fastify.get('/assignment', renderAssignment);
+  fastify.get('/docs', renderAssignment);
 }

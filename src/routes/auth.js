@@ -1,5 +1,6 @@
-import { BASE_DOMAIN, COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
+import { COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
 import { createSession, destroySession, verifyPassword } from '../auth.js';
+import { viewData } from '../viewData.js';
 
 export default async function authRoutes(fastify) {
   fastify.post('/login', async (req, reply) => {
@@ -7,12 +8,10 @@ export default async function authRoutes(fastify) {
     const password = String(req.body?.password || '');
 
     if (!verifyPassword(login, password)) {
-      return reply.view('login.eta', {
+      return reply.view('login.eta', viewData({
         title: 'Login',
-        baseDomain: BASE_DOMAIN,
-        assignmentHref: `https://${BASE_DOMAIN}/assignment`,
         error: 'Invalid login or password.',
-      });
+      }));
     }
 
     const sid = await createSession(login);

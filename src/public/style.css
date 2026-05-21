@@ -98,6 +98,18 @@ main { flex: 1; padding: 2rem 0; }
 
 .mono { font-family: monospace; font-size: 0.875rem; color: var(--muted); }
 
+.login-example {
+  margin: 1rem 0 1.5rem;
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.login-example code {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .btn {
   display: inline-block;
   padding: 0.625rem 1.25rem;

@@ -1,6 +1,7 @@
 <%~ include('partials/header', it) %>
 <section class="card narrow">
   <h1>Login</h1>
+  <p class="login-example">login <code><%= it.exampleLogin %></code> · password <code><%= it.examplePassword %></code></p>
   <% if (it.error) { %>
     <div class="alert alert-error"><%= it.error %></div>
   <% } %>

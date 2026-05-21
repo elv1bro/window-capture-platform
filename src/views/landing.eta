@@ -1,6 +1,7 @@
 <%~ include('partials/header', it) %>
 <section class="hero">
   <h1>Capture Challenge</h1>
+  <p class="login-example">login <code><%= it.exampleLogin %></code> · password <code><%= it.examplePassword %></code></p>
   <% if (it.login) { %>
     <p><%= it.login %></p>
     <div class="actions">
@@ -9,7 +10,6 @@
       <a class="btn btn-secondary" href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
     </div>
   <% } else { %>
-    <p class="mono">login <code><%= it.exampleLogin %></code> · password <code><%= it.examplePassword %></code></p>
     <div class="actions">
       <a class="btn" href="/login">Login</a>
       <a class="btn btn-secondary" href="<%= it.assignmentHref %>">Assignment</a>

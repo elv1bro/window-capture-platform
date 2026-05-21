@@ -1,13 +1,5 @@
-import { BASE_DOMAIN, TURNSTILE_SITEKEY } from '../config.js';
-import { randomLoginExample } from '../examples.js';
-
-function viewData(extra = {}) {
-  return {
-    baseDomain: BASE_DOMAIN,
-    assignmentHref: `https://${BASE_DOMAIN}/assignment`,
-    ...extra,
-  };
-}
+import { TURNSTILE_SITEKEY } from '../config.js';
+import { viewData } from '../viewData.js';
 
 function renderAssignment(reply) {
   return reply.view('assignment.eta', viewData({ title: 'Assignment' }));
@@ -16,12 +8,9 @@ function renderAssignment(reply) {
 export default async function pagesRoutes(fastify) {
   fastify.get('/', async (req, reply) => {
     if (req.level === 'main') {
-      const example = randomLoginExample();
       return reply.view('landing.eta', viewData({
         title: 'Capture Challenge',
         login: req.session?.login || null,
-        exampleLogin: example.login,
-        examplePassword: example.password,
       }));
     }
 

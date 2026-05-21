@@ -51,7 +51,7 @@ See [docs/SETUP_VPS.md](docs/SETUP_VPS.md) and [docs/SETUP_CF.md](docs/SETUP_CF.
 
 ```bash
 npm ci --omit=dev
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup
 ```

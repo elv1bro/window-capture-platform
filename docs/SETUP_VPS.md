@@ -8,9 +8,10 @@ Minimal setup — nginx/TLS is your responsibility. Replace `example.top` with y
 apt update
 apt install -y redis-server curl git
 
-# Node.js 20
+# Node.js 20+ (required)
 curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
 apt install -y nodejs
+node -v   # must be v20+
 
 npm install -g pm2
 ```
@@ -49,7 +50,7 @@ REDIS_URL=redis://127.0.0.1:6379
 ```bash
 npm ci --omit=dev
 mkdir -p /var/log/capture-api
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 pm2 save
 pm2 startup systemd -u root --hp /root
 ```

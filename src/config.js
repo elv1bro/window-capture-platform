@@ -13,8 +13,8 @@ export const BASE_DOMAIN = process.env.BASE_DOMAIN || 'example.top';
 export const TRAP_LOGIN = 'verified_researcher';
 export const TRAP_HEADER = 'x-researcher-mode';
 
-export const SLOT_MIN_MS = 1000;
-export const SLOT_MAX_MS = 3000;
+export const SLOT_MIN_MS = Number(process.env.SLOT_MIN_MS || 100);
+export const SLOT_MAX_MS = Number(process.env.SLOT_MAX_MS || 500);
 
 // Capture rate limits per login: { max requests, windowSec }
 export const RATE_LIMITS = {

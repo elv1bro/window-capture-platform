@@ -1,12 +1,4 @@
-import {
-  BASE_DOMAIN,
-  SLOT_INTERVAL_MAX,
-  SLOT_INTERVAL_MIN,
-  SLOT_MAX_MS,
-  SLOT_MIN_MS,
-  TRAP_HEADER,
-  TRAP_LOGIN,
-} from './config.js';
+import { BASE_DOMAIN, TRAP_HEADER, TRAP_LOGIN } from './config.js';
 import { randomLoginExample } from './examples.js';
 
 export function viewData(req, extra = {}) {
@@ -20,10 +12,6 @@ export function viewData(req, extra = {}) {
     lvl1Url: `https://lvl1.${BASE_DOMAIN}/`,
     lvl2Url: `https://lvl2.${BASE_DOMAIN}/`,
     lvl3Url: `https://lvl3.${BASE_DOMAIN}/`,
-    slotIntervalMin: SLOT_INTERVAL_MIN,
-    slotIntervalMax: SLOT_INTERVAL_MAX,
-    slotDurationMin: SLOT_MIN_MS,
-    slotDurationMax: SLOT_MAX_MS,
     trapLogin: TRAP_LOGIN,
     trapHeader: TRAP_HEADER,
     exampleLogin: example.login,

@@ -33,7 +33,7 @@ Add to `/etc/hosts` (use your domain):
 127.0.0.1 example.top lvl1.example.top lvl2.example.top lvl3.example.top
 ```
 
-Set `BASE_DOMAIN` and `COOKIE_DOMAIN` in `.env` to match.
+Set `BASE_DOMAIN` in `.env` to match.
 
 Open:
 

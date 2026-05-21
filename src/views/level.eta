@@ -1,0 +1,43 @@
+<%~ include('partials/header', it) %>
+<section class="capture-page" data-level="<%= it.level %>" data-is-lvl3="<%= it.isLvl3 ? '1' : '0' %>">
+  <div class="capture-header">
+    <h1><%= it.level.toUpperCase() %> — Capture Flag</h1>
+    <p>Signed in as <strong><%= it.login %></strong> &middot; Rate limit: <%= it.rateHint %></p>
+  </div>
+
+  <div id="captured-banner" class="captured-banner hidden"></div>
+
+  <% if (it.showCaptcha) { %>
+    <div id="turnstile-container" class="turnstile-box" data-sitekey="<%= it.turnstileSitekey %>"></div>
+  <% } %>
+
+  <div class="capture-actions">
+    <button id="capture-btn" type="button" class="btn btn-capture">Capture Flag</button>
+    <form method="post" action="/logout" style="display:inline">
+      <button type="submit" class="btn btn-secondary">Logout</button>
+    </form>
+  </div>
+
+  <% if (it.isLvl3) { %>
+    <p class="hint">LVL3 uses queue flow: join &rarr; wait (SSE) &rarr; claim with signature from <code>/guard.js</code></p>
+  <% } else if (it.level === 'lvl2') { %>
+    <p class="hint">LVL2 requires <code>X-Request-Id</code> header and <code>captcha_token</code> on capture requests.</p>
+  <% } else { %>
+    <p class="hint">Window opens every 10 seconds for 1–3 seconds. Button is always active — API returns <code>closed</code> outside the window.</p>
+  <% } %>
+
+  <div class="log-panel">
+    <h2>Response log</h2>
+    <ul id="response-log"></ul>
+  </div>
+</section>
+
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script src="/public/capture.js"></script>
+<% if (it.showCaptcha) { %>
+<script src="/public/turnstile.js"></script>
+<% } %>
+<% if (it.isLvl3) { %>
+<script src="/guard.js"></script>
+<% } %>
+<%~ include('partials/footer') %>

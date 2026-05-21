@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= it.title %></title>
+  <link rel="stylesheet" href="/public/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="https://<%= it.baseDomain %>/" class="logo">Capture</a>
+      <nav>
+        <a href="https://<%= it.baseDomain %>/docs">Assignment</a>
+        <a href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
+        <a href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
+        <a href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">

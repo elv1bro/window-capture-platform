@@ -1,0 +1,11 @@
+node_modules/
+.env
+*.log
+.DS_Store
+
+# Local-only: solutions and walkthroughs — not for public repo
+test/
+scripts/
+
+# Assignment copy with honeypot text — served from templates, not needed in git
+docs/ASSIGNMENT.md

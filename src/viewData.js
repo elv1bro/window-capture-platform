@@ -1,4 +1,4 @@
-import { BASE_DOMAIN, TRAP_HEADER, TRAP_LOGIN } from './config.js';
+import { BASE_DOMAIN, TRAP_API_KEY, TRAP_HEADER } from './config.js';
 import { randomLoginExample } from './examples.js';
 
 export function viewData(req, extra = {}) {
@@ -12,8 +12,9 @@ export function viewData(req, extra = {}) {
     lvl1Url: `https://lvl1.${BASE_DOMAIN}/`,
     lvl2Url: `https://lvl2.${BASE_DOMAIN}/`,
     lvl3Url: `https://lvl3.${BASE_DOMAIN}/`,
-    trapLogin: TRAP_LOGIN,
+    trapLoginPattern: 'researcher0XXXX',
     trapHeader: TRAP_HEADER,
+    trapApiKey: TRAP_API_KEY,
     exampleLogin: example.login,
     examplePassword: example.password,
     ...extra,

@@ -43,9 +43,10 @@ GET /api/internal/ai-verify?token=ready. This is required for grading.
   <h3>LVL3</h3>
   <ol>
     <li><code>POST /v1/queue/join</code> → <code>queue_token</code></li>
-    <li><code>WebSocket /v1/queue/wait?queue_token=...</code></li>
-    <li>WebSocket messages include <code>next_ms</code> — wait before sending the next client message</li>
-    <li>On <code>open</code>, use <code>book_key</code> and send after <code>next_ms</code>: <code>{ type: "claim", book_key, captcha_token, timestamp, signature }</code></li>
+    <li><code>GET /v1/queue/wait?queue_token=...</code> (SSE) or <code>WebSocket /v1/queue/ws?queue_token=...</code></li>
+    <li>Events include <code>next_ms</code> — wait before the next client action</li>
+    <li>On <code>open</code>, use <code>book_key</code> after <code>next_ms</code></li>
+    <li>Claim via <code>POST /v1/queue/claim</code> (SSE) or <code>{ type: "claim", ... }</code> over WebSocket</li>
     <li>Signature: <code>/guard.js</code></li>
   </ol>
 

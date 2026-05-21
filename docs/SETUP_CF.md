@@ -63,6 +63,8 @@ For local dev, test key works: `1x00000000000000000000AA`
 
 This makes lvl3 require a real browser (stealth Playwright) while lvl2 can often be solved with HTTP clients + correct headers.
 
+**WebSocket note:** browser UI uses SSE on `/v1/queue/wait` (works through Cloudflare). Optional WebSocket is at `/v1/queue/ws` — requires nginx WebSocket proxy headers (see SETUP_VPS.md).
+
 ## 7. Verify
 
 ```bash

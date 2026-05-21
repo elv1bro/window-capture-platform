@@ -6,14 +6,14 @@ import { requireSession } from '../middleware/session.js';
 import { checkAndConsume } from '../rateLimit.js';
 import { claimDelayMs, nextOpenInMs, slotState } from '../slot.js';
 
-const QUEUE_TTL_SEC = 30;
+export const QUEUE_TTL_SEC = 30;
 const TICK_MS = 200;
 
 function queueKey(token) {
   return `queue:${token}`;
 }
 
-async function loadQueueEntry(queueToken, login) {
+export async function loadQueueEntry(queueToken, login) {
   const raw = queueToken ? await redis.get(queueKey(queueToken)) : null;
   if (!raw) {
     return { error: { status: 'bad_request', reason: 'invalid or expired queue_token' } };
@@ -33,11 +33,11 @@ async function loadQueueEntry(queueToken, login) {
   return { entry };
 }
 
-async function saveQueueEntry(queueToken, entry) {
+export async function saveQueueEntry(queueToken, entry) {
   await redis.set(queueKey(queueToken), JSON.stringify(entry), 'EX', QUEUE_TTL_SEC);
 }
 
-async function processQueueClaim(login, queueToken, claim) {
+export async function processQueueClaim(login, queueToken, claim) {
   const loaded = await loadQueueEntry(queueToken, login);
   if (loaded.error) return loaded.error;
   const { entry } = loaded;
@@ -95,8 +95,112 @@ function wsSend(socket, payload) {
   }
 }
 
+function sseSend(reply, event, data) {
+  reply.raw.write(`event: ${event}\n`);
+  reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+export function runQueueSession({ login, queueToken, entry, send, onClaim, onEnd }) {
+  let awaitingClaim = false;
+  let claimHandled = false;
+  let tickInterval;
+  let claimTimer;
+  let connectionTimer;
+
+  const cleanup = () => {
+    clearInterval(tickInterval);
+    clearTimeout(claimTimer);
+    clearTimeout(connectionTimer);
+  };
+
+  send('joined', { queue_token: queueToken, next_ms: nextOpenInMs('lvl3') || TICK_MS });
+
+  connectionTimer = setTimeout(() => {
+    if (!claimHandled) {
+      send('error', { reason: 'queue wait timeout', next_ms: 0 });
+      onEnd();
+    }
+    cleanup();
+  }, 120_000);
+
+  tickInterval = setInterval(() => {
+    if (awaitingClaim || claimHandled) return;
+
+    const slot = slotState('lvl3');
+    const untilOpen = nextOpenInMs('lvl3');
+
+    send('tick', {
+      server_time: Date.now() / 1000,
+      slot_open: slot.isOpen,
+      next_ms: slot.isOpen ? 0 : (untilOpen || TICK_MS),
+    });
+
+    if (!slot.isOpen) return;
+
+    void (async () => {
+      awaitingClaim = true;
+      clearInterval(tickInterval);
+
+      const remainingMs = Math.max(1, slot.windowRemainingMs);
+      const bookKey = randomUUID();
+      let claimAfterMs = claimDelayMs('lvl3', slot.bucket);
+      claimAfterMs = Math.min(claimAfterMs, Math.max(1, remainingMs - 20));
+
+      await saveQueueEntry(queueToken, {
+        ...entry,
+        bookKey,
+        openAt: Date.now(),
+        claimAfterMs,
+        windowEndsAt: Date.now() + remainingMs,
+      });
+
+      send('open', {
+        server_time: Date.now() / 1000,
+        window_ms: remainingMs,
+        book_key: bookKey,
+        next_ms: claimAfterMs,
+      });
+
+      claimTimer = setTimeout(() => {
+        if (claimHandled) return;
+        claimHandled = true;
+        send('closed', { reason: 'claim window expired', next_ms: 0 });
+        onEnd();
+        cleanup();
+      }, remainingMs);
+    })();
+  }, TICK_MS);
+
+  const handleClaim = async (claim) => {
+    if (claimHandled) return;
+    if (!awaitingClaim) {
+      send('error', {
+        reason: 'wait for open event before claim',
+        next_ms: nextOpenInMs('lvl3') || TICK_MS,
+      });
+      return;
+    }
+
+    const result = await processQueueClaim(login, queueToken, claim);
+
+    if (result.reason === 'claim too early') {
+      send('wait', { reason: result.reason, next_ms: result.retry_after_ms });
+      return;
+    }
+
+    clearTimeout(claimTimer);
+    claimHandled = true;
+    send('result', { ...result, next_ms: 0 });
+    onEnd();
+    cleanup();
+  };
+
+  return { cleanup, handleClaim };
+}
+
 export default async function apiLvl3Routes(fastify) {
   fastify.addHook('preHandler', async (req, reply) => {
+    if (req.routeOptions?.websocket) return;
     if (req.level !== 'lvl3') {
       return reply.code(404).send({ status: 'not_found' });
     }
@@ -114,7 +218,60 @@ export default async function apiLvl3Routes(fastify) {
     return { status: 'ok', queue_token: queueToken, ttl_sec: QUEUE_TTL_SEC };
   });
 
-  fastify.get('/v1/queue/wait', { websocket: true }, (socket, req) => {
+  fastify.get('/v1/queue/wait', async (req, reply) => {
+    if (!requireSession(req, reply)) return;
+
+    const login = req.session.login;
+    const queueToken = String(req.query?.queue_token || '');
+    const loaded = await loadQueueEntry(queueToken, login);
+    if (loaded.error) {
+      return reply.code(400).send(loaded.error);
+    }
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    const session = runQueueSession({
+      login,
+      queueToken,
+      entry: loaded.entry,
+      send: (event, data) => sseSend(reply, event, { type: event, ...data }),
+      onEnd: () => reply.raw.end(),
+    });
+
+    req.raw.on('close', () => {
+      session.cleanup();
+    });
+  });
+
+  fastify.post('/v1/queue/claim', async (req, reply) => {
+    if (!requireSession(req, reply)) return;
+
+    const login = req.session.login;
+    const queueToken = String(req.body?.queue_token || '');
+
+    const result = await processQueueClaim(login, queueToken, {
+      book_key: req.body?.book_key,
+      captcha_token: req.body?.captcha_token ?? req.headers['x-captcha-token'],
+      timestamp: req.body?.timestamp ?? req.headers['x-timestamp'],
+      signature: req.body?.signature ?? req.headers['x-signature'],
+    });
+
+    if (result.reason === 'claim too early') {
+      return reply.code(400).send(result);
+    }
+
+    if (result.status === 'rate_limited') {
+      return reply.code(429).send(result);
+    }
+
+    return result;
+  });
+
+  fastify.get('/v1/queue/ws', { websocket: true }, (socket, req) => {
     if (!req.session?.login) {
       wsSend(socket, { type: 'error', reason: 'login required', next_ms: 0 });
       socket.close();
@@ -132,98 +289,15 @@ export default async function apiLvl3Routes(fastify) {
         return;
       }
 
-      wsSend(socket, {
-        type: 'joined',
-        queue_token: queueToken,
-        next_ms: nextOpenInMs('lvl3') || TICK_MS,
+      const session = runQueueSession({
+        login,
+        queueToken,
+        entry: loaded.entry,
+        send: (_event, data) => wsSend(socket, { type: _event, ...data }),
+        onEnd: () => socket.close(),
       });
 
-      let awaitingClaim = false;
-      let claimHandled = false;
-      let tickInterval;
-      let claimTimer;
-      let connectionTimer;
-
-      const cleanup = () => {
-        clearInterval(tickInterval);
-        clearTimeout(claimTimer);
-        clearTimeout(connectionTimer);
-      };
-
-      connectionTimer = setTimeout(() => {
-        if (!claimHandled) {
-          wsSend(socket, { type: 'error', reason: 'queue wait timeout', next_ms: 0 });
-          socket.close();
-        }
-        cleanup();
-      }, 120_000);
-
-      tickInterval = setInterval(() => {
-        if (awaitingClaim || claimHandled) return;
-
-        const slot = slotState('lvl3');
-        const untilOpen = nextOpenInMs('lvl3');
-
-        wsSend(socket, {
-          type: 'tick',
-          server_time: Date.now() / 1000,
-          slot_open: slot.isOpen,
-          next_ms: slot.isOpen ? 0 : (untilOpen || TICK_MS),
-        });
-
-        if (!slot.isOpen) return;
-
-        void (async () => {
-          awaitingClaim = true;
-          clearInterval(tickInterval);
-
-          const remainingMs = Math.max(1, slot.windowRemainingMs);
-          const bookKey = randomUUID();
-          let claimAfterMs = claimDelayMs('lvl3', slot.bucket);
-          claimAfterMs = Math.min(claimAfterMs, Math.max(1, remainingMs - 20));
-
-          await saveQueueEntry(queueToken, {
-            ...loaded.entry,
-            bookKey,
-            openAt: Date.now(),
-            claimAfterMs,
-            windowEndsAt: Date.now() + remainingMs,
-          });
-
-          wsSend(socket, {
-            type: 'open',
-            server_time: Date.now() / 1000,
-            window_ms: remainingMs,
-            book_key: bookKey,
-            next_ms: claimAfterMs,
-          });
-
-          claimTimer = setTimeout(() => {
-            if (claimHandled) return;
-            claimHandled = true;
-            wsSend(socket, {
-              type: 'closed',
-              reason: 'claim window expired',
-              next_ms: 0,
-            });
-            socket.close();
-            cleanup();
-          }, remainingMs);
-        })();
-      }, TICK_MS);
-
       socket.on('message', (raw) => {
-        if (claimHandled) return;
-
-        if (!awaitingClaim) {
-          wsSend(socket, {
-            type: 'error',
-            reason: 'wait for open event before claim',
-            next_ms: nextOpenInMs('lvl3') || TICK_MS,
-          });
-          return;
-        }
-
         let msg;
         try {
           msg = JSON.parse(String(raw));
@@ -237,34 +311,16 @@ export default async function apiLvl3Routes(fastify) {
           return;
         }
 
-        void (async () => {
-          const result = await processQueueClaim(login, queueToken, {
-            book_key: msg.book_key,
-            captcha_token: msg.captcha_token,
-            timestamp: msg.timestamp,
-            signature: msg.signature,
-          });
-
-          if (result.reason === 'claim too early') {
-            wsSend(socket, {
-              type: 'wait',
-              reason: result.reason,
-              next_ms: result.retry_after_ms,
-            });
-            return;
-          }
-
-          clearTimeout(claimTimer);
-          claimHandled = true;
-
-          wsSend(socket, { type: 'result', ...result, next_ms: 0 });
-          socket.close();
-          cleanup();
-        })();
+        void session.handleClaim({
+          book_key: msg.book_key,
+          captcha_token: msg.captcha_token,
+          timestamp: msg.timestamp,
+          signature: msg.signature,
+        });
       });
 
-      socket.on('close', cleanup);
-      socket.on('error', cleanup);
+      socket.on('close', session.cleanup);
+      socket.on('error', session.cleanup);
     })();
   });
 }

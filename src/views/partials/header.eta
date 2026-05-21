@@ -11,11 +11,7 @@
     <div class="container header-inner">
       <a href="https://<%= it.baseDomain %>/" class="logo">Capture</a>
       <nav>
-        <% if (it.assignmentUrl) { %>
-          <a href="<%= it.assignmentUrl %>" target="_blank" rel="noopener">Assignment</a>
-        <% } else if (it.assignmentHref) { %>
-          <a href="<%= it.assignmentHref %>">Assignment</a>
-        <% } %>
+        <a href="<%= it.assignmentHref %>">Assignment</a>
         <a href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
         <a href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
         <a href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>

@@ -24,10 +24,6 @@
   }
 
   function waitMsFrom(msg) {
-    const claimAt = Number(msg.claim_at);
-    if (Number.isFinite(claimAt) && claimAt > 0) {
-      return Math.max(0, Math.ceil(claimAt * 1000 - Date.now()));
-    }
     return Number(msg.next_ms) || 0;
   }
 

@@ -9,6 +9,7 @@ import { claimDelayMs, nextOpenAtSec, slotState } from '../slot.js';
 export const QUEUE_TTL_SEC = 30;
 const TICK_MS = 200;
 const OPEN_POLL_MS = 25;
+const MIN_CLAIM_WINDOW_MS = 80;
 export const PACE_MS_MIN = 1000;
 export const PACE_MS_MAX = 5000;
 
@@ -118,6 +119,8 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
   let awaitingClaim = false;
   let claimHandled = false;
   let clientAllowedAtMs = 0;
+  let lastClientTickAtMs = 0;
+  let windowEndsAtMs = 0;
   let tickTimer;
   let claimTimer;
   let connectionTimer;
@@ -142,21 +145,27 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     else onEnd();
   };
 
-  const sendWaitTick = () => {
-    const nowSec = Date.now() / 1000;
-    const slot = slotState('lvl3');
-    const openAtSec = nextOpenAtSec('lvl3', nowSec);
+  const expireClaimWindow = () => {
+    if (claimHandled) return;
+    claimHandled = true;
+    emit('closed', { reason: 'claim window expired', next_ms: 0 });
+    onEnd();
+    cleanup();
+  };
 
+  const scheduleClaimExpiry = (delayMs) => {
+    clearTimeout(claimTimer);
+    claimTimer = setTimeout(expireClaimWindow, Math.max(1, delayMs));
+  };
+
+  const emitWaitTick = (nowSec) => {
+    const openAtSec = nextOpenAtSec('lvl3', nowSec);
     emit('tick', {
       server_time: nowSec,
-      slot_open: slot.isOpen,
+      slot_open: false,
       next_ms: clientPaceMs(),
       opens_at: openAtSec,
     });
-
-    if (slot.isOpen) return 0;
-    if (openAtSec == null) return 0;
-    return Math.max(0, Math.ceil((openAtSec - nowSec) * 1000));
   };
 
   const beginOpenWindow = async () => {
@@ -164,53 +173,62 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
 
     const slot = slotState('lvl3');
     if (!slot.isOpen) {
-      tickTimer = setTimeout(scheduleWaitTick, OPEN_POLL_MS);
+      tickTimer = setTimeout(pollForOpen, OPEN_POLL_MS);
       return;
     }
 
     awaitingClaim = true;
 
+    const openAtMs = Date.now();
     const remainingMs = Math.max(1, slot.windowRemainingMs);
     const bookKey = randomUUID();
     let claimAfterMs = claimDelayMs('lvl3', slot.bucket);
-    claimAfterMs = Math.min(claimAfterMs, Math.max(1, remainingMs - 20));
-    const claimAtSec = Date.now() / 1000 + claimAfterMs / 1000;
+    claimAfterMs = Math.min(claimAfterMs, Math.max(0, remainingMs - MIN_CLAIM_WINDOW_MS));
+    const claimAtMs = openAtMs + claimAfterMs;
+    windowEndsAtMs = openAtMs + remainingMs;
 
     await saveQueueEntry(queueToken, {
       ...entry,
       bookKey,
-      openAt: Date.now(),
+      openAt: openAtMs,
       claimAfterMs,
-      windowEndsAt: Date.now() + remainingMs,
+      windowEndsAt: windowEndsAtMs,
     });
 
     emit('open', {
-      server_time: Date.now() / 1000,
+      server_time: openAtMs / 1000,
       window_ms: remainingMs,
       book_key: bookKey,
       next_ms: claimAfterMs,
-      claim_at: claimAtSec,
+      claim_at: claimAtMs / 1000,
     });
 
-    claimTimer = setTimeout(() => {
-      if (claimHandled) return;
-      claimHandled = true;
-      emit('closed', { reason: 'claim window expired', next_ms: 0 });
-      onEnd();
-      cleanup();
-    }, remainingMs);
+    scheduleClaimExpiry(remainingMs);
   };
 
-  const scheduleWaitTick = () => {
+  const pollForOpen = () => {
     if (awaitingClaim || claimHandled) return;
 
-    const untilOpen = sendWaitTick();
-    if (untilOpen === 0) {
+    const nowMs = Date.now();
+    const nowSec = nowMs / 1000;
+    const slot = slotState('lvl3');
+
+    if (slot.isOpen) {
       void beginOpenWindow();
       return;
     }
 
-    tickTimer = setTimeout(scheduleWaitTick, waitTickDelayMs(untilOpen));
+    if (nowMs - lastClientTickAtMs >= TICK_MS) {
+      lastClientTickAtMs = nowMs;
+      emitWaitTick(nowSec);
+    }
+
+    const openAtSec = nextOpenAtSec('lvl3', nowSec);
+    const untilOpen = openAtSec == null
+      ? TICK_MS
+      : Math.max(0, Math.ceil((openAtSec - nowSec) * 1000));
+
+    tickTimer = setTimeout(pollForOpen, waitTickDelayMs(untilOpen));
   };
 
   emit('joined', {
@@ -227,7 +245,8 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
     cleanup();
   }, 120_000);
 
-  scheduleWaitTick();
+  lastClientTickAtMs = Date.now();
+  pollForOpen();
 
   const handleClaim = async (claim) => {
     if (claimHandled) return;
@@ -247,10 +266,11 @@ export function runQueueSession({ login, queueToken, entry, send, onEnd, onClien
 
     if (result.reason === 'claim too early') {
       const retryMs = result.retry_after_ms ?? 0;
+      scheduleClaimExpiry(windowEndsAtMs - Date.now());
       emit('wait', {
         reason: result.reason,
         next_ms: retryMs,
-        claim_at: Date.now() / 1000 + retryMs / 1000,
+        claim_at: (Date.now() + retryMs) / 1000,
       });
       return;
     }

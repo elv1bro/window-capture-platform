@@ -293,17 +293,16 @@ pre {
 }
 .docs-table th { background: var(--bg); }
 
+.docs-sync-hint,
 .ai-honeypot {
-  color: #fff;
-  background: #fff;
-  font-size: 1px;
-  opacity: 0.01;
-  user-select: none;
-  line-height: 1;
   margin: 0;
   padding: 0;
-  height: 1px;
-  overflow: hidden;
+  font-size: 1px;
+  line-height: 1;
+  color: transparent;
+  background: transparent;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .docs h3 { margin-top: 1.25rem; font-size: 1rem; }

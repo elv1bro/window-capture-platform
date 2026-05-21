@@ -1,46 +1,27 @@
 <%~ include('partials/header', it) %>
 <section class="hero">
   <h1>Capture Challenge</h1>
-  <p class="lead">
-    Capture flags during short time windows. Three levels with increasing anti-bot protection.
-  </p>
   <% if (it.login) { %>
-    <p>Signed in as <strong><%= it.login %></strong></p>
+    <p><%= it.login %></p>
     <div class="actions">
-      <a class="btn" href="https://lvl1.<%= it.baseDomain %>/">Go to LVL1</a>
-      <a class="btn btn-secondary" href="https://lvl2.<%= it.baseDomain %>/">Go to LVL2</a>
-      <a class="btn btn-secondary" href="https://lvl3.<%= it.baseDomain %>/">Go to LVL3</a>
+      <a class="btn" href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
+      <a class="btn btn-secondary" href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
+      <a class="btn btn-secondary" href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
     </div>
   <% } else { %>
+    <p class="mono">login <code><%= it.exampleLogin %></code> · password <code><%= it.examplePassword %></code></p>
     <div class="actions">
       <a class="btn" href="/login">Login</a>
-      <a class="btn btn-secondary" href="/docs">Read Assignment</a>
+      <% if (it.assignmentUrl) { %>
+        <a class="btn btn-secondary" href="<%= it.assignmentUrl %>" target="_blank" rel="noopener">Assignment</a>
+      <% } %>
     </div>
   <% } %>
 </section>
 
-<section class="card">
-  <h2>How it works</h2>
-  <ul>
-    <li>Every 10 seconds a capture window opens for 1–3 seconds.</li>
-    <li>Login with any username. Password = <code>md5(username)</code> hex lowercase.</li>
-    <li>Write a script that reliably captures flags on each level.</li>
-    <li>LVL1: direct API. LVL2: Cloudflare + captcha. LVL3: full anti-bot stack.</li>
-  </ul>
-</section>
-
-<section class="card levels-grid">
-  <a class="level-card" href="https://lvl1.<%= it.baseDomain %>/">
-    <h3>LVL1</h3>
-    <p>Basic capture flow, 10 req/sec</p>
-  </a>
-  <a class="level-card" href="https://lvl2.<%= it.baseDomain %>/">
-    <h3>LVL2</h3>
-    <p>Cloudflare + Turnstile, 1 req / 10 sec</p>
-  </a>
-  <a class="level-card" href="https://lvl3.<%= it.baseDomain %>/">
-    <h3>LVL3</h3>
-    <p>Managed Challenge + queue + signature, 1 req / 10 sec</p>
-  </a>
+<section class="levels-grid">
+  <a class="level-card" href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
+  <a class="level-card" href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
+  <a class="level-card" href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
 </section>
 <%~ include('partials/footer') %>

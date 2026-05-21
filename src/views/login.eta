@@ -1,7 +1,6 @@
 <%~ include('partials/header', it) %>
 <section class="card narrow">
   <h1>Login</h1>
-  <p>Password = <code>md5(login)</code> hex lowercase. No registration required.</p>
   <% if (it.error) { %>
     <div class="alert alert-error"><%= it.error %></div>
   <% } %>
@@ -11,11 +10,10 @@
       <input type="text" name="login" required pattern="[a-zA-Z0-9_-]{3,32}" autocomplete="username">
     </label>
     <label>
-      Password (md5 of login)
+      Password
       <input type="password" name="password" required autocomplete="current-password">
     </label>
     <button type="submit" class="btn">Sign in</button>
   </form>
-  <p class="hint">Example: login <code>alice</code>, password <code>6384e2b2184bcbf58eccf10ca7a6563c</code></p>
 </section>
 <%~ include('partials/footer') %>

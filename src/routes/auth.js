@@ -1,4 +1,4 @@
-import { BASE_DOMAIN, COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
+import { ASSIGNMENT_URL, BASE_DOMAIN, COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
 import { createSession, destroySession, verifyPassword } from '../auth.js';
 
 export default async function authRoutes(fastify) {
@@ -9,9 +9,9 @@ export default async function authRoutes(fastify) {
     if (!verifyPassword(login, password)) {
       return reply.view('login.eta', {
         title: 'Login',
-        level: req.level,
         baseDomain: BASE_DOMAIN,
-        error: 'Invalid login or password. Password = md5(login) hex lowercase.',
+        assignmentUrl: ASSIGNMENT_URL,
+        error: 'Invalid login or password.',
       });
     }
 

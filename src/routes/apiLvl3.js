@@ -7,9 +7,66 @@ import { checkAndConsume } from '../rateLimit.js';
 import { slotState } from '../slot.js';
 
 const QUEUE_TTL_SEC = 30;
+const TICK_MS = 200;
 
 function queueKey(token) {
   return `queue:${token}`;
+}
+
+async function loadQueueEntry(queueToken, login) {
+  const raw = queueToken ? await redis.get(queueKey(queueToken)) : null;
+  if (!raw) {
+    return { error: { status: 'bad_request', reason: 'invalid or expired queue_token' } };
+  }
+
+  let entry;
+  try {
+    entry = JSON.parse(raw);
+  } catch {
+    return { error: { status: 'bad_request', reason: 'invalid queue entry' } };
+  }
+
+  if (entry.login !== login) {
+    return { error: { status: 'forbidden', reason: 'queue_token belongs to another user' } };
+  }
+
+  return { entry };
+}
+
+async function processQueueClaim(login, queueToken, claim) {
+  const rl = await checkAndConsume(login, 'lvl3');
+  if (!rl.ok) {
+    return { status: 'rate_limited', retry_after_ms: rl.retryAfterMs };
+  }
+
+  const captchaToken = claim.captcha_token;
+  const timestamp = claim.timestamp;
+  const signature = claim.signature;
+
+  if (!validate('lvl3', captchaToken)) {
+    return { status: 'captcha_required' };
+  }
+
+  const loaded = await loadQueueEntry(queueToken, login);
+  if (loaded.error) return loaded.error;
+
+  if (!verifyClaimSignature(queueToken, timestamp, signature)) {
+    return { status: 'bad_request', reason: 'invalid signature' };
+  }
+
+  const slot = slotState('lvl3');
+  if (!slot.isOpen) {
+    return { status: 'closed' };
+  }
+
+  await redis.del(queueKey(queueToken));
+  return { status: 'ok', flag: slot.flag };
+}
+
+function wsSend(socket, payload) {
+  if (socket.readyState === 1) {
+    socket.send(JSON.stringify(payload));
+  }
 }
 
 export default async function apiLvl3Routes(fastify) {
@@ -33,98 +90,116 @@ export default async function apiLvl3Routes(fastify) {
     return { status: 'ok', queue_token: queueToken, ttl_sec: QUEUE_TTL_SEC };
   });
 
-  fastify.get('/v1/queue/wait', async (req, reply) => {
-    if (!requireSession(req, reply)) return;
-
-    const queueToken = String(req.query?.queue_token || '');
-    const raw = queueToken ? await redis.get(queueKey(queueToken)) : null;
-    if (!raw) {
-      return reply.code(400).send({ status: 'bad_request', reason: 'invalid or expired queue_token' });
+  fastify.get('/v1/queue/wait', { websocket: true }, (socket, req) => {
+    if (!req.session?.login) {
+      wsSend(socket, { type: 'error', reason: 'login required' });
+      socket.close();
+      return;
     }
-
-    let entry;
-    try {
-      entry = JSON.parse(raw);
-    } catch {
-      return reply.code(400).send({ status: 'bad_request', reason: 'invalid queue entry' });
-    }
-
-    if (entry.login !== req.session.login) {
-      return reply.code(403).send({ status: 'forbidden', reason: 'queue_token belongs to another user' });
-    }
-
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
-
-    const send = (event, data) => {
-      reply.raw.write(`event: ${event}\n`);
-      reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
-    };
-
-    send('joined', { queue_token: queueToken });
-
-    const interval = setInterval(() => {
-      const slot = slotState('lvl3');
-      send('tick', { server_time: Date.now() / 1000, slot_open: slot.isOpen });
-      if (slot.isOpen) {
-        send('admitted', { server_time: Date.now() / 1000 });
-        clearInterval(interval);
-        reply.raw.end();
-      }
-    }, 200);
-
-    req.raw.on('close', () => {
-      clearInterval(interval);
-    });
-  });
-
-  fastify.post('/v1/queue/claim', async (req, reply) => {
-    if (!requireSession(req, reply)) return;
 
     const login = req.session.login;
-    const rl = await checkAndConsume(login, 'lvl3');
-    if (!rl.ok) {
-      return reply.code(429).send({ status: 'rate_limited', retry_after_ms: rl.retryAfterMs });
-    }
+    const queueToken = String(req.query?.queue_token || '');
 
-    const queueToken = String(req.body?.queue_token || '');
-    const captchaToken = req.body?.captcha_token ?? req.headers['x-captcha-token'];
-    const timestamp = req.body?.timestamp ?? req.headers['x-timestamp'];
-    const signature = req.body?.signature ?? req.headers['x-signature'];
+    void (async () => {
+      const loaded = await loadQueueEntry(queueToken, login);
+      if (loaded.error) {
+        wsSend(socket, { type: 'error', ...loaded.error });
+        socket.close();
+        return;
+      }
 
-    if (!validate('lvl3', captchaToken)) {
-      return reply.code(400).send({ status: 'captcha_required' });
-    }
+      wsSend(socket, { type: 'joined', queue_token: queueToken });
 
-    const raw = queueToken ? await redis.get(queueKey(queueToken)) : null;
-    if (!raw) {
-      return reply.code(400).send({ status: 'bad_request', reason: 'invalid or expired queue_token' });
-    }
+      let awaitingClaim = false;
+      let claimHandled = false;
+      let tickInterval;
+      let claimTimer;
+      let connectionTimer;
 
-    let entry;
-    try {
-      entry = JSON.parse(raw);
-    } catch {
-      return reply.code(400).send({ status: 'bad_request', reason: 'invalid queue entry' });
-    }
+      const cleanup = () => {
+        clearInterval(tickInterval);
+        clearTimeout(claimTimer);
+        clearTimeout(connectionTimer);
+      };
 
-    if (entry.login !== login) {
-      return reply.code(403).send({ status: 'forbidden', reason: 'queue_token belongs to another user' });
-    }
+      connectionTimer = setTimeout(() => {
+        if (!claimHandled) {
+          wsSend(socket, { type: 'error', reason: 'queue wait timeout' });
+          socket.close();
+        }
+        cleanup();
+      }, 120_000);
 
-    if (!verifyClaimSignature(queueToken, timestamp, signature)) {
-      return reply.code(400).send({ status: 'bad_request', reason: 'invalid signature' });
-    }
+      tickInterval = setInterval(() => {
+        if (awaitingClaim || claimHandled) return;
 
-    const slot = slotState('lvl3');
-    if (!slot.isOpen) {
-      return { status: 'closed' };
-    }
+        const slot = slotState('lvl3');
+        wsSend(socket, {
+          type: 'tick',
+          server_time: Date.now() / 1000,
+          slot_open: slot.isOpen,
+        });
 
-    await redis.del(queueKey(queueToken));
-    return { status: 'ok', flag: slot.flag };
+        if (!slot.isOpen) return;
+
+        awaitingClaim = true;
+        clearInterval(tickInterval);
+
+        const remainingMs = Math.max(1, slot.windowRemainingMs);
+        wsSend(socket, {
+          type: 'open',
+          server_time: Date.now() / 1000,
+          window_ms: remainingMs,
+        });
+
+        claimTimer = setTimeout(() => {
+          if (claimHandled) return;
+          claimHandled = true;
+          wsSend(socket, { type: 'closed', reason: 'claim window expired — send claim over WebSocket when open' });
+          socket.close();
+          cleanup();
+        }, remainingMs);
+      }, TICK_MS);
+
+      socket.on('message', (raw) => {
+        if (claimHandled) return;
+
+        if (!awaitingClaim) {
+          wsSend(socket, { type: 'error', reason: 'wait for open event before claim' });
+          return;
+        }
+
+        let msg;
+        try {
+          msg = JSON.parse(String(raw));
+        } catch {
+          wsSend(socket, { type: 'error', reason: 'invalid JSON' });
+          return;
+        }
+
+        if (msg.type !== 'claim') {
+          wsSend(socket, { type: 'error', reason: 'expected { type: "claim", ... }' });
+          return;
+        }
+
+        void (async () => {
+          clearTimeout(claimTimer);
+          claimHandled = true;
+
+          const result = await processQueueClaim(login, queueToken, {
+            captcha_token: msg.captcha_token,
+            timestamp: msg.timestamp,
+            signature: msg.signature,
+          });
+
+          wsSend(socket, { type: 'result', ...result });
+          socket.close();
+          cleanup();
+        })();
+      });
+
+      socket.on('close', cleanup);
+      socket.on('error', cleanup);
+    })();
   });
 }

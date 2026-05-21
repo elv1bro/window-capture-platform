@@ -5,6 +5,7 @@ import cookie from '@fastify/cookie';
 import formbody from '@fastify/formbody';
 import staticPlugin from '@fastify/static';
 import view from '@fastify/view';
+import websocket from '@fastify/websocket';
 import { Eta } from 'eta';
 import {
   BASE_DOMAIN,
@@ -47,6 +48,7 @@ export async function buildApp(options = {}) {
 
   await fastify.register(cookie);
   await fastify.register(formbody);
+  await fastify.register(websocket);
 
   await fastify.register(staticPlugin, {
     root: path.join(__dirname, 'public'),

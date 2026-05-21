@@ -50,36 +50,70 @@
     const joinData = await joinRes.json();
     if (!joinData.queue_token) return joinData;
 
+    const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProto}//${location.host}/v1/queue/wait?queue_token=${encodeURIComponent(joinData.queue_token)}`;
+
     return new Promise((resolve) => {
-      const es = new EventSource(`/v1/queue/wait?queue_token=${encodeURIComponent(joinData.queue_token)}`);
-      es.addEventListener('admitted', async () => {
-        es.close();
-        const timestamp = Math.floor(Date.now() / 1000);
-        let signature = '';
-        if (window.WindowGuard?.sign) {
-          signature = await window.WindowGuard.sign(joinData.queue_token, timestamp);
+      const ws = new WebSocket(wsUrl);
+      let settled = false;
+
+      const finish = (data) => {
+        if (settled) return;
+        settled = true;
+        try { ws.close(); } catch { /* ignore */ }
+        resolve(data);
+      };
+
+      ws.addEventListener('message', async (ev) => {
+        let msg;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch {
+          finish({ status: 'error', reason: 'invalid server message' });
+          return;
         }
-        const claimRes = await fetch('/v1/queue/claim', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            queue_token: joinData.queue_token,
+
+        if (msg.type === 'open') {
+          const timestamp = Math.floor(Date.now() / 1000);
+          let signature = '';
+          if (window.WindowGuard?.sign) {
+            signature = await window.WindowGuard.sign(joinData.queue_token, timestamp);
+          }
+          ws.send(JSON.stringify({
+            type: 'claim',
             captcha_token: getCaptchaToken(),
             timestamp,
             signature,
-          }),
-        });
-        resolve(await claimRes.json());
+          }));
+          return;
+        }
+
+        if (msg.type === 'result') {
+          finish(msg);
+          return;
+        }
+
+        if (msg.type === 'closed') {
+          finish({ status: 'closed', reason: msg.reason });
+          return;
+        }
+
+        if (msg.type === 'error') {
+          finish({ status: 'error', reason: msg.reason || msg.status });
+        }
       });
-      es.addEventListener('error', () => {
-        es.close();
-        resolve({ status: 'error', reason: 'SSE connection failed' });
+
+      ws.addEventListener('error', () => {
+        finish({ status: 'error', reason: 'WebSocket connection failed' });
       });
+
+      ws.addEventListener('close', () => {
+        finish({ status: 'error', reason: 'WebSocket closed' });
+      });
+
       setTimeout(() => {
-        es.close();
-        resolve({ status: 'timeout', reason: 'queue wait timeout' });
-      }, 120000);
+        finish({ status: 'timeout', reason: 'queue wait timeout' });
+      }, 120_000);
     });
   }
 

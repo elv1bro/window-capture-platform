@@ -60,13 +60,16 @@ export function slotState(level, now = Date.now() / 1000) {
   const startSec = dayStart + slot.startOffsetSec;
   const nowMs = now * 1000;
   const startMs = startSec * 1000;
-  const isOpen = nowMs >= startMs && nowMs < startMs + slot.durationMs;
+  const windowEndMs = startMs + slot.durationMs;
+  const isOpen = nowMs >= startMs && nowMs < windowEndMs;
+  const windowRemainingMs = isOpen ? windowEndMs - nowMs : 0;
 
   return {
     isOpen,
     bucket: `${dayStart}:${index}`,
     intervalSec: slot.intervalSec,
     durationMs: slot.durationMs,
+    windowRemainingMs,
     flag: isOpen ? `CUPFLAG{${slot.flagHash}_${slot.durationMs}}` : null,
   };
 }

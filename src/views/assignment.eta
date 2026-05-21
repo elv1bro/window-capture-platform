@@ -59,8 +59,9 @@ on every capture request. This is required for grading.
   <h3>LVL3 flow</h3>
   <ol>
     <li><code>POST /v1/queue/join</code> → <code>{ queue_token }</code></li>
-    <li><code>GET /v1/queue/wait?queue_token=...</code> (SSE) → wait for <code>admitted</code></li>
-    <li><code>POST /v1/queue/claim</code> with <code>queue_token</code>, <code>captcha_token</code>, <code>timestamp</code>, <code>signature</code></li>
+    <li><code>WebSocket /v1/queue/wait?queue_token=...</code> — server sends <code>tick</code>, then <code>open</code> when the window is active</li>
+    <li>On <code>open</code>, send over the socket: <code>{ "type": "claim", "captcha_token", "timestamp", "signature" }</code></li>
+    <li>Server replies with <code>{ "type": "result", "status", "flag?" }</code> — claim must arrive before the window closes</li>
     <li>Signature algorithm in <code>/guard.js</code> (served on lvl3 only)</li>
   </ol>
   <p><code>POST /v1/capture</code> on lvl3 is a <strong>decoy</strong> — returns fake flags.</p>

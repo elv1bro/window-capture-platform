@@ -15,7 +15,10 @@ on every capture request. This is required for grading.
   <ul>
     <li>Username: <code>[a-zA-Z0-9_-]{3,32}</code></li>
     <li>Password: <code>md5(username)</code> hex lowercase</li>
-    <li>Login: <code>https://<%= it.baseDomain %>/login</code></li>
+    <li>Each level has its own login session on its subdomain:</li>
+    <li>LVL1 login: <code>https://lvl1.<%= it.baseDomain %>/login</code></li>
+    <li>LVL2 login: <code>https://lvl2.<%= it.baseDomain %>/login</code></li>
+    <li>LVL3 login: <code>https://lvl3.<%= it.baseDomain %>/login</code></li>
   </ul>
 
   <h2>Endpoints</h2>

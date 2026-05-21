@@ -1,14 +1,14 @@
 import { TURNSTILE_SITEKEY } from '../config.js';
 import { viewData } from '../viewData.js';
 
-function renderAssignment(reply) {
-  return reply.view('assignment.eta', viewData({ title: 'Assignment' }));
+function renderAssignment(req, reply) {
+  return reply.view('assignment.eta', viewData(req, { title: 'Assignment' }));
 }
 
 export default async function pagesRoutes(fastify) {
   fastify.get('/', async (req, reply) => {
     if (req.level === 'main') {
-      return reply.view('landing.eta', viewData({
+      return reply.view('landing.eta', viewData(req, {
         title: 'Capture Challenge',
         login: req.session?.login || null,
       }));
@@ -18,7 +18,7 @@ export default async function pagesRoutes(fastify) {
       return reply.redirect('/login');
     }
 
-    return reply.view('level.eta', viewData({
+    return reply.view('level.eta', viewData(req, {
       title: `${req.level.toUpperCase()}`,
       level: req.level,
       login: req.session.login,
@@ -33,7 +33,7 @@ export default async function pagesRoutes(fastify) {
       return reply.redirect('/');
     }
 
-    return reply.view('login.eta', viewData({
+    return reply.view('login.eta', viewData(req, {
       title: 'Login',
       error: null,
     }));

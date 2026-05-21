@@ -1,5 +1,5 @@
-import { COOKIE_DOMAIN, SESSION_TTL_SEC } from '../config.js';
 import { createSession, destroySession, verifyPassword } from '../auth.js';
+import { sessionCookieOptions } from '../cookies.js';
 import { viewData } from '../viewData.js';
 
 export default async function authRoutes(fastify) {
@@ -8,21 +8,14 @@ export default async function authRoutes(fastify) {
     const password = String(req.body?.password || '');
 
     if (!verifyPassword(login, password)) {
-      return reply.view('login.eta', viewData({
+      return reply.view('login.eta', viewData(req, {
         title: 'Login',
         error: 'Invalid login or password.',
       }));
     }
 
     const sid = await createSession(login);
-    reply.setCookie('sid', sid, {
-      path: '/',
-      domain: COOKIE_DOMAIN,
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.COOKIE_SECURE === 'true',
-      maxAge: SESSION_TTL_SEC,
-    });
+    reply.setCookie('sid', sid, sessionCookieOptions());
 
     return reply.redirect('/');
   });
@@ -30,7 +23,7 @@ export default async function authRoutes(fastify) {
   fastify.post('/logout', async (req, reply) => {
     const sid = req.cookies?.sid;
     await destroySession(sid);
-    reply.clearCookie('sid', { path: '/', domain: COOKIE_DOMAIN });
+    reply.clearCookie('sid', sessionCookieOptions());
     return reply.redirect('/login');
   });
 }

@@ -5,21 +5,21 @@
   <% if (it.login) { %>
     <p><%= it.login %></p>
     <div class="actions">
-      <a class="btn" href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
-      <a class="btn btn-secondary" href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
-      <a class="btn btn-secondary" href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
+      <a class="btn" href="<%= it.lvl1Url %>">LVL1</a>
+      <a class="btn btn-secondary" href="<%= it.lvl2Url %>">LVL2</a>
+      <a class="btn btn-secondary" href="<%= it.lvl3Url %>">LVL3</a>
     </div>
   <% } else { %>
     <div class="actions">
-      <a class="btn" href="/login">Login</a>
+      <a class="btn" href="<%= it.loginHref %>">Login</a>
       <a class="btn btn-secondary" href="<%= it.assignmentHref %>">Assignment</a>
     </div>
   <% } %>
 </section>
 
 <section class="levels-grid">
-  <a class="level-card" href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
-  <a class="level-card" href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
-  <a class="level-card" href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
+  <a class="level-card" href="<%= it.lvl1Url %>">LVL1</a>
+  <a class="level-card" href="<%= it.lvl2Url %>">LVL2</a>
+  <a class="level-card" href="<%= it.lvl3Url %>">LVL3</a>
 </section>
 <%~ include('partials/footer') %>

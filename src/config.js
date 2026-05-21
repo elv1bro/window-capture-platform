@@ -9,7 +9,6 @@ export const SESSION_TTL_SEC = Number(process.env.SESSION_TTL_SEC || 86400);
 export const SLOT_INTERVAL = Number(process.env.SLOT_INTERVAL || 10);
 export const TURNSTILE_SITEKEY = process.env.TURNSTILE_SITEKEY || '1x00000000000000000000AA';
 export const BASE_DOMAIN = process.env.BASE_DOMAIN || 'example.top';
-export const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN || `.${BASE_DOMAIN}`;
 
 export const TRAP_LOGIN = 'verified_researcher';
 export const TRAP_HEADER = 'x-researcher-mode';

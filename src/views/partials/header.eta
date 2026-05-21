@@ -9,12 +9,12 @@
 <body>
   <header class="site-header">
     <div class="container header-inner">
-      <a href="https://<%= it.baseDomain %>/" class="logo">Capture</a>
+      <a href="<%= it.homeHref %>" class="logo">Capture</a>
       <nav>
         <a href="<%= it.assignmentHref %>">Assignment</a>
-        <a href="https://lvl1.<%= it.baseDomain %>/">LVL1</a>
-        <a href="https://lvl2.<%= it.baseDomain %>/">LVL2</a>
-        <a href="https://lvl3.<%= it.baseDomain %>/">LVL3</a>
+        <a href="<%= it.lvl1Url %>">LVL1</a>
+        <a href="<%= it.lvl2Url %>">LVL2</a>
+        <a href="<%= it.lvl3Url %>">LVL3</a>
       </nav>
     </div>
   </header>

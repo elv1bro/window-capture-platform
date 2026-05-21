@@ -43,7 +43,6 @@ SECRET=<long-random-string>
 GUARD_SECRET=<another-long-random-string>
 TURNSTILE_SITEKEY=<from-cloudflare-dashboard>
 BASE_DOMAIN=example.top
-COOKIE_DOMAIN=.example.top
 REDIS_URL=redis://127.0.0.1:6379
 ```
 

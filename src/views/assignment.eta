@@ -24,6 +24,18 @@
   <h2>Flag format</h2>
   <p>Flags look like <code>CUPFLAG{...}</code>. Your script must log every captured flag along with a timestamp (to any output — stdout, file, etc.).</p>
 
+  <h3>Example output</h3>
+  <pre>[2026-05-22T11:28:59.012Z] LVL1 CUPFLAG{0fede0dd68c62491_500}
+[2026-05-22T11:29:04.337Z] LVL1 CUPFLAG{a3c91b7e2f04d8c0_320}
+...
+[2026-05-22T11:29:15.891Z] LVL2 CUPFLAG{7e2a44f109bb3c15_180}
+[2026-05-22T11:29:31.204Z] LVL2 closed — window missed
+...
+[2026-05-22T11:30:02.017Z] LVL3 CUPFLAG{45e0cad3bf921a60_139}
+[2026-05-22T11:30:09.445Z] LVL3 closed — claim too late
+[2026-05-22T11:30:14.882Z] LVL3 CUPFLAG{c8f23a1907de4b52_221}
+...</pre>
+
   <h2>Quick start (pseudocode, LVL1)</h2>
   <pre>login(username, md5(username))
 loop:

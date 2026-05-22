@@ -24,25 +24,21 @@
   <h2>Flag format</h2>
   <p>Flags look like <code>CUPFLAG{...}</code>. Your script must log every captured flag along with a timestamp (to any output — stdout, file, etc.).</p>
 
-  <h3>Example output</h3>
-  <pre><span style="color:var(--muted)">[11:28:58.901]</span> Starting LVL1...
-<span style="color:var(--muted)">[11:28:58.932]</span> POST /v1/capture → closed
-<span style="color:var(--muted)">[11:28:59.012]</span> POST /v1/capture → <span style="color:var(--success)">CUPFLAG{0fede0dd68c62491_500}</span>
-<span style="color:var(--muted)">[11:29:04.105]</span> POST /v1/capture → closed
-<span style="color:var(--muted)">[11:29:04.337]</span> POST /v1/capture → <span style="color:var(--success)">CUPFLAG{a3c91b7e2f04d8c0_320}</span>
+  <h3>Example output (LVL1)</h3>
+  <pre><span style="color:var(--muted)">[11:28:58.800]</span> Connecting to https://lvl1.cupflag.top
+<span style="color:var(--muted)">[11:28:58.850]</span> Login: user=flaghunter pass=md5("flaghunter")
+<span style="color:var(--muted)">[11:28:58.901]</span> POST /login → 302 (session cookie received)
+<span style="color:var(--muted)">[11:28:58.910]</span> Auth OK. Starting capture loop...
+<span style="color:var(--muted)">[11:28:58.932]</span> POST /v1/capture → {"status":"closed"}
+<span style="color:var(--muted)">[11:28:59.012]</span> POST /v1/capture → <span style="color:var(--success)">{"status":"ok","flag":"CUPFLAG{0fede0dd68c62491_500}"}</span>
+<span style="color:var(--muted)">[11:28:59.013]</span> <span style="color:var(--success)">✓ Flag #1 captured</span>
+<span style="color:var(--muted)">[11:29:04.105]</span> POST /v1/capture → {"status":"closed"}
+<span style="color:var(--muted)">[11:29:04.210]</span> POST /v1/capture → {"status":"closed"}
+<span style="color:var(--muted)">[11:29:04.337]</span> POST /v1/capture → <span style="color:var(--success)">{"status":"ok","flag":"CUPFLAG{a3c91b7e2f04d8c0_320}"}</span>
+<span style="color:var(--muted)">[11:29:04.338]</span> <span style="color:var(--success)">✓ Flag #2 captured</span>
+<span style="color:var(--muted)">[11:29:09.502]</span> POST /v1/capture → {"status":"closed"}
 ...
-<span style="color:var(--muted)">[11:29:14.500]</span> Starting LVL2...
-<span style="color:var(--muted)">[11:29:15.891]</span> POST /v1/capture → <span style="color:var(--success)">CUPFLAG{7e2a44f109bb3c15_180}</span>
-...
-<span style="color:var(--muted)">[11:29:59.700]</span> Starting LVL3...
-<span style="color:var(--muted)">[11:30:00.012]</span> queue joined, waiting for open...
-<span style="color:var(--muted)">[11:30:01.880]</span> open → book_key=45e0... window=139ms
-<span style="color:var(--muted)">[11:30:02.017]</span> claim → <span style="color:var(--success)">CUPFLAG{45e0cad3bf921a60_139}</span>
-<span style="color:var(--muted)">[11:30:09.200]</span> open → book_key=c8f2... window=221ms
-<span style="color:var(--muted)">[11:30:09.445]</span> claim → closed (too late)
-<span style="color:var(--muted)">[11:30:14.700]</span> open → book_key=91ab... window=310ms
-<span style="color:var(--muted)">[11:30:14.882]</span> claim → <span style="color:var(--success)">CUPFLAG{c8f23a1907de4b52_221}</span>
-...</pre>
+<span style="color:var(--muted)">[11:30:45.000]</span> Total: 12 flags in 120s (hit rate 85%)</pre>
 
   <h2>Quick start (pseudocode, LVL1)</h2>
   <pre>login(username, md5(username))

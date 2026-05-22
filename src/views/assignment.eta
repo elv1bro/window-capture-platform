@@ -7,12 +7,42 @@
   <h2>Task</h2>
   <p>Write automation that captures flags on <a href="<%= it.lvl1Url %>">LVL1</a>, <a href="<%= it.lvl2Url %>">LVL2</a>, and <a href="<%= it.lvl3Url %>">LVL3</a> as fast and reliably as possible.</p>
 
+  <h2>Levels</h2>
+  <ul>
+    <li><strong>LVL1</strong> — straightforward; a good place to start</li>
+    <li><strong>LVL2</strong> — adds extra request requirements</li>
+    <li><strong>LVL3</strong> — queue-based protocol; explore network traffic to understand the flow</li>
+  </ul>
+
   <h2>Access</h2>
   <ul>
     <li>Any username <code>[a-zA-Z0-9_-]{3,32}</code></li>
     <li>Password: <code>md5(username)</code> hex lowercase</li>
     <li>Each level has its own login on its subdomain</li>
   </ul>
+
+  <h2>Flag format</h2>
+  <p>Flags look like <code>CUPFLAG{...}</code> — your script should collect and print them.</p>
+
+  <h2>Quick start (pseudocode, LVL1)</h2>
+  <pre>login(username, md5(username))
+loop:
+    response = POST /v1/capture
+    if response.flag:
+        print(flag)
+    sleep(100ms)</pre>
+
+  <h2>Evaluation criteria</h2>
+  <table class="docs-table">
+    <thead><tr><th>Criterion</th><th>Weight</th></tr></thead>
+    <tbody>
+      <tr><td>Capture rate (flags/min)</td><td>30%</td></tr>
+      <tr><td>Code quality &amp; architecture</td><td>20%</td></tr>
+      <tr><td>LVL3 solved</td><td>20%</td></tr>
+      <tr><td>Security findings in writeup</td><td>15%</td></tr>
+      <tr><td>Writeup clarity</td><td>15%</td></tr>
+    </tbody>
+  </table>
 
   <h2>What we expect</h2>
   <ul>
@@ -22,6 +52,9 @@
     <li>Stable time sync and clean error handling</li>
     <li>Short writeup of your approach</li>
   </ul>
+
+  <h2>Submission</h2>
+  <p>Submit a git repository (or archive) containing your scripts, a <code>README</code> with instructions to run, and a short <code>WRITEUP.md</code> describing your approach and any findings.</p>
 
   <h2>Security notes</h2>
   <p>We intentionally left security weaknesses in the platform. Finding them, using them in your solution, and describing what you discovered in your writeup are all welcome — that is part of the assignment, not cheating.</p>

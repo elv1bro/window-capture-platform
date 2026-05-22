@@ -38,7 +38,7 @@
 <span style="color:var(--muted)">[11:29:04.338]</span> <span style="color:var(--success)">✓ Flag #2 captured</span>
 <span style="color:var(--muted)">[11:29:09.502]</span> POST /v1/capture → {"status":"closed"}
 ...
-<span style="color:var(--muted)">[11:30:45.000]</span> Total: 12 flags in 120s (hit rate 85%)</pre>
+<span style="color:var(--muted)">[11:30:45.000]</span> Total: 12 flags in 120s</pre>
 
   <h2>Quick start (pseudocode, LVL1)</h2>
   <pre>login(username, md5(username))

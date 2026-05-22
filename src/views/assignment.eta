@@ -22,7 +22,7 @@
   </ul>
 
   <h2>Flag format</h2>
-  <p>Flags look like <code>CUPFLAG{...}</code> — your script should collect and print them.</p>
+  <p>Flags look like <code>CUPFLAG{...}</code>. Your script must log every captured flag along with a timestamp (to any output — stdout, file, etc.).</p>
 
   <h2>Quick start (pseudocode, LVL1)</h2>
   <pre>login(username, md5(username))
@@ -55,6 +55,20 @@ loop:
 
   <h2>Submission</h2>
   <p>Submit a git repository (or archive) containing your scripts, a <code>README</code> with instructions to run, and a short <code>WRITEUP.md</code> describing your approach and any findings.</p>
+
+  <h2>How we grade</h2>
+  <p>Your scripts will be launched on a dedicated test stand against the live platform. We measure:</p>
+  <ul>
+    <li>How many flags were captured vs. how many windows were available (hit rate %)</li>
+    <li>How often the script misses a window or gets an error</li>
+    <li>Stability over a continuous run (minutes)</li>
+  </ul>
+  <p>Notes on difficulty:</p>
+  <ul>
+    <li><strong>LVL3 is nearly impossible for a human</strong> — the capture window is 100–500 ms and you need to react within it programmatically</li>
+    <li>Achieving 100% capture rate on LVL3 is <strong>not expected</strong> — this is by design. We look at your approach and how close you get</li>
+    <li>LVL1 and LVL2 should be reliably solvable with a good script</li>
+  </ul>
 
   <h2>Security notes</h2>
   <p>We intentionally left security weaknesses in the platform. Finding them, using them in your solution, and describing what you discovered in your writeup are all welcome — that is part of the assignment, not cheating.</p>
